@@ -18,12 +18,21 @@ module OmniAuth
       def authorize_params
         options[:scope] = "snsapi_userinfo" if options[:scope].nil?
 
-        {
+        hash = {
           :appid => options.client_id, 
           :redirect_uri => callback_url, 
           :response_type => 'code', 
           :scope => options[:scope]
         }
+
+        # additional params
+        %w{scope state before_url}.each do |v|
+          if request.params[v]
+            session["omniauth.weixin.#{v.to_s}"] = hash[v.to_sym] = request.params[v]
+          end
+        end
+
+        hash
       end
 
       def token_params
@@ -32,8 +41,15 @@ module OmniAuth
       end
 
       def build_access_token
+
+        code = request.params['code']
+
+        # save code and state
+        session["omniauth.weixin.code"] = code
+        session["omniauth.weixin.state"] = request.params['state']
+
         client.auth_code.get_token(
-          request.params['code'],
+          code,
           {:redirect_uri => callback_url, :parse => :json}.merge(token_params.to_hash(:symbolize_keys => true)),
           {:mode => :query, :param_name => 'access_token'}
         )
